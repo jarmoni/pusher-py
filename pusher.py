@@ -12,37 +12,37 @@ import subprocess
 class PusherThread(threading.Thread):
     def __init__(self, repos):
         threading.Thread.__init__(self)
-        self.Repos = repos
+        self._repos = repos
 
     def create_command(self, cmd):
-        if not self.Repos['user'] == 'root':
-            cmd = ['su', '-', self.Repos['user'], '-c'] + [' '.join(cmd)]
+        if not self._repos['user'] == 'root':
+            cmd = ['su', '-', self._repos['user'], '-c'] + [' '.join(cmd)]
         logging.debug('Created command=' + str(cmd))
         return cmd
 
     def check_changes(self):
-        if subprocess.check_output(self.create_command(['git', 'ls-files', '--others', '--exclude-standard']), cwd=self.Repos['path']) == 0:
+        if subprocess.check_output(self.create_command(['git', 'ls-files', '--others', '--exclude-standard']), cwd=self._repos['path']) == 0:
             return True
-        if subprocess.check_output(self.create_command(['git', 'ls-files', '-m']), cwd=self.Repos['path']) == 0:
+        if subprocess.check_output(self.create_command(['git', 'ls-files', '-m']), cwd=self._repos['path']) == 0:
             return True
         return False
 
     def add_and_commit(self):
-        subprocess.check_output(self.create_command(['git', 'add', '-a']), cwd=self.Repos['path'])
-        subprocess.check_output(self.create_command(['git', 'commit', '-m', self.Repos['msg']]), cwd=self.Repos['path'])
+        subprocess.check_output(self.create_command(['git', 'add', '-a']), cwd=self._repos['path'])
+        subprocess.check_output(self.create_command(['git', 'commit', '-m', self._repos['msg']]), cwd=self._repos['path'])
 
     def pull(self):
-        subprocess.check_output(['git', 'pull'], cwd=self.Repos['path'])
+        subprocess.check_output(['git', 'pull'], cwd=self._repos['path'])
 
     def push(self):
-        subprocess.check_output(['git', 'push'], cwd=self.Repos['path'])
+        subprocess.check_output(['git', 'push'], cwd=self._repos['path'])
 
     def run(self):
-        logging.info('Starting Repository=' + str(self.Repos))
+        logging.info('Starting Repository=' + str(self._repos))
         while True:
             try:
                 changed = self.check_changes()
-                if changed or self.Repos['auto_pull']:
+                if changed or self._repos['auto_pull']:
                     if changed:
                         self.add_and_commit()
                     pull()
