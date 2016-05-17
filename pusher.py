@@ -14,20 +14,22 @@ class PusherThread(threading.Thread):
         threading.Thread.__init__(self)
         self.Repos = repos
 
+    def create_command(self, cmd):
+        if not self.Repos['user'] == 'root':
+            cmd = ['su', '-', self.Repos['user'], '-c'] + [' '.join(cmd)]
+        logging.debug('Created command=' + str(cmd))
+        return cmd
+
     def check_changes(self):
-        if subprocess.check_output(['git', 'ls-files', '--others', '--exclude-standard'], cwd=self.Repos['path']):
-            logging.debug('Repository=' + self.Repos['name'] + ', untracked files')
+        if subprocess.check_output(self.create_command(['git', 'ls-files', '--others', '--exclude-standard']), cwd=self.Repos['path']) == 0:
             return True
-        if subprocess.check_output(['git', 'ls-files', '-m'], cwd=self.Repos['path']):
-            logging.debug('Repository=' + self.Repos['name'] + ', modified files')
+        if subprocess.check_output(self.create_command(['git', 'ls-files', '-m']), cwd=self.Repos['path']) == 0:
             return True
         return False
 
     def add_and_commit(self):
-        if subprocess.check_output(['git', 'add', '-a'], cwd=self.Repos['path']):
-            logging.debug('Repository=' + self.Repos['name'] + ', added files')
-        if subprocess.check_output(['git', 'commit', '-m', self.Repos['msg']], cwd=self.Repos['path']):
-            logging.debug('Repository=' + self.Repos['name'] + ', commited files')
+        subprocess.check_output(self.create_command(['git', 'add', '-a']), cwd=self.Repos['path'])
+        subprocess.check_output(self.create_command(['git', 'commit', '-m', self.Repos['msg']]), cwd=self.Repos['path'])
 
     def pull(self):
         subprocess.check_output(['git', 'pull'], cwd=self.Repos['path'])
@@ -38,14 +40,17 @@ class PusherThread(threading.Thread):
     def run(self):
         logging.info('Starting Repository=' + str(self.Repos))
         while True:
-            changed = self.check_changes()
-            if changed or self.Repos['auto_pull']:
-                if changed:
-                    self.add_and_commit()
-                pull()
-                if changed:
-                    push()
-            time.sleep(5)
+            try:
+                changed = self.check_changes()
+                if changed or self.Repos['auto_pull']:
+                    if changed:
+                        self.add_and_commit()
+                    pull()
+                    if changed:
+                        self.push()
+            except Exception as ex:
+                logging.error('Command failed=' + str(cmd) + ', ex=' + str(ex))
+            time.sleep(30)
 
 
 def update_repos_cfg(repos, globals, optional_params):
@@ -61,16 +66,12 @@ def main(args):
     logging.info('Starting with args=' + str(args))
     with open(args.config_file, 'r') as cfg_file:
         cfg = yaml.load(cfg_file)
-
     logging.info('Starting with config=' + str(cfg))
-    threads = []
     for repos in cfg['repositories']:
         update_repos_cfg(repos, cfg['globals'], ['auto_push', 'auto_pull', 'user', 'key', 'msg'])
         thread = PusherThread(repos)
-        threads.append(thread)
         thread.daemon = True
         thread.start()
-
     while True:
         time.sleep(1)
 
